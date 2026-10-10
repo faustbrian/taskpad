@@ -133,7 +133,7 @@ final class AppModel: ObservableObject {
         }
     }
     func setTheme(_ value: PadTheme) { guard var next = state else { return }; finishEditing(); next = state!; next.theme = value; save(next) }
-    @discardableResult func applySettings(_ value: PadSettings) -> Bool {
+    @discardableResult func applySettings(_ value: PadSettings, theme selectedTheme: PadTheme? = nil) -> Bool {
         guard let store, !unsaved else { message = "Save pending edits before changing settings."; return false }
         finishEditing()
         guard !unsaved else { return false }
@@ -141,10 +141,12 @@ final class AppModel: ObservableObject {
             // A rule is another task entry surface, not an escape from the row bound.
             let existing = Dictionary(uniqueKeysWithValues: settings.schedules.map { ($0.id, $0.text) })
             for rule in value.schedules where existing[rule.id] != rule.text {
-                let width = max(40, sheetWidth - theme.textInset - 24 - 48 - (rule.priority.rawValue == 0 ? 0 : 24))
+                let width = max(40, sheetWidth - (selectedTheme ?? theme).textInset - 24 - 48 - (rule.priority.rawValue == 0 ? 0 : 24))
                 guard TaskLayout.lines(rule.text, width: width, font: value.nativeFont) <= TaskInput.maxLines else { throw PadError.taskTooLong }
             }
-            let candidate = try store.settingsCandidate(value); save(candidate)
+            var candidate = try store.settingsCandidate(value)
+            if let selectedTheme { candidate.theme = selectedTheme }
+            save(candidate)
             undoManager.removeAllActions()
             if candidate.sheet.tasks.contains(where: { $0.id == selectedTask }) == false { selectedTask = candidate.sheet.tasks.first?.id }
             return !unsaved

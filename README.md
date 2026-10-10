@@ -62,6 +62,11 @@ together; it does not sort by priority or completion.
 
 ## Settings and paper
 
+Settings uses a System Settings-style sidebar and grouped panes, with native
+light/dark appearance independent of the paper. Changes remain a draft across
+categories until Save; Cancel discards the draft. Settings and theme save as
+one recoverable change, so Retry keeps the complete selection.
+
 Karst is the default. The other themes are Anoto, Things, Todoist and TickTick:
 aesthetic alternatives with identical functions, no commercial logos and no
 animations. Karst uses solid black completed circles; Anoto uses blue checked
@@ -73,7 +78,8 @@ system San Francisco font. Missing fonts fall back safely to the system font.
 Header and footer have independently configurable visibility, brand, heading,
 date and count. Branding is off by default; footer and notes are hidden.
 Hide both sections for a list-only window. Settings remains reachable through
-the app menu and **⌘,**. The window title is editable too.
+the app menu and **⌘,** when editing today's sheet. Resolve a waiting new-day
+decision before changing settings. The window title is editable too.
 
 Empty date format uses the system locale. Custom dates use Foundation patterns
 such as `EEE, d MMM` or `yyyy/MM/dd`. Text and count formats support `{date}`,
@@ -129,3 +135,6 @@ discarding them. This development revision has no legacy data migration.
 `TASKPAD_DATA_DIR` can select isolated development storage. A separate smoke
 bundle can use `TaskPadSmokeDataDirectory` in its Info.plist; ordinary builds
 set neither. Native screenshots are in `docs/screenshots/`.
+
+The [requirements audit](docs/requirements.md) maps the requested behavior to
+the implementation and its verification boundaries.

@@ -2,14 +2,123 @@ import SwiftUI
 import AppKit
 import TaskPadCore
 
+private enum SettingsPage: String, CaseIterable, Identifiable {
+    case general, appearance, header, footer, repeating
+    var id: Self { self }
+    var title: String {
+        switch self {
+        case .general: return "General"
+        case .appearance: return "Appearance"
+        case .header: return "Header"
+        case .footer: return "Footer"
+        case .repeating: return "Repeating Tasks"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .general: return "gearshape"
+        case .appearance: return "paintpalette.fill"
+        case .header: return "rectangle.topthird.inset.filled"
+        case .footer: return "rectangle.bottomthird.inset.filled"
+        case .repeating: return "repeat"
+        }
+    }
+    var tint: Color {
+        switch self {
+        case .general: return .gray
+        case .appearance: return .purple
+        case .header, .footer: return .blue
+        case .repeating: return .orange
+        }
+    }
+    var summary: String {
+        switch self {
+        case .general: return "A fixed daily sheet, with only the space you choose."
+        case .appearance: return "Choose your paper and the type that feels right."
+        case .header: return "Show a heading, just the date, or no header at all."
+        case .footer: return "An optional finishing line beneath your list."
+        case .repeating: return "Make room for the routines that belong on your day."
+        }
+    }
+}
+
+// Paper themes stay light; the settings presentation follows macOS independently.
+private final class SettingsAppearance: ObservableObject {
+    @Published var colorScheme: ColorScheme
+    private var observation: NSKeyValueObservation?
+    init() {
+        colorScheme = Self.scheme(NSApp.effectiveAppearance)
+        observation = NSApp.observe(\.effectiveAppearance, options: [.new]) { [weak self] app, _ in
+            let scheme = Self.scheme(app.effectiveAppearance)
+            DispatchQueue.main.async { self?.colorScheme = scheme }
+        }
+    }
+    private static func scheme(_ appearance: NSAppearance) -> ColorScheme {
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .dark : .light
+    }
+}
+
 struct PadSettingsView: View {
     @ObservedObject var model: AppModel
     @State private var draft: PadSettings
     @State private var theme: PadTheme
+    @State private var page: SettingsPage = .general
+    @StateObject private var appearance = SettingsAppearance()
     init(model: AppModel) { self.model = model; _draft = State(initialValue: model.settings); _theme = State(initialValue: model.theme) }
     var body: some View {
-        VStack(spacing: 0) {
-            TabView {
+        HStack(spacing: 0) {
+            sidebar
+            Divider()
+            VStack(spacing: 0) {
+                VStack(spacing: 8) {
+                    settingsIcon(page, size: 40)
+                    Text(page.title).font(.system(size: 21, weight: .semibold)).accessibilityAddTraits(.isHeader)
+                    Text(page.summary).font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity).padding(.horizontal, 24).padding(.top, 28).padding(.bottom, 12)
+                content
+                actions
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(nsColor: .windowBackgroundColor))
+        }
+        .frame(width: 780, height: 680)
+        .font(.system(size: 13)).foregroundStyle(.primary)
+        .preferredColorScheme(appearance.colorScheme)
+    }
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Settings").font(.system(size: 18, weight: .semibold)).padding(.horizontal, 12).padding(.top, 28).padding(.bottom, 16)
+            ForEach(SettingsPage.allCases) { item in
+                Button { page = item } label: {
+                    HStack(spacing: 10) {
+                        settingsIcon(item, size: 24)
+                        Text(item.title).font(.system(size: 13, weight: page == item ? .medium : .regular))
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 10).padding(.vertical, 8)
+                    .contentShape(Rectangle())
+                    .foregroundStyle(page == item ? Color.white : Color.primary)
+                    .background(page == item ? Color.accentColor : Color.clear, in: RoundedRectangle(cornerRadius: 7))
+                }
+                .buttonStyle(.plain).accessibilityLabel(item.title)
+                .accessibilityValue(page == item ? "Selected" : "")
+            }
+            Spacer()
+            Text("⌘, opens settings").font(.system(size: 11)).foregroundStyle(.secondary).padding(12)
+        }
+        .padding(.horizontal, 10).frame(width: 190)
+        .frame(maxHeight: .infinity).background(.regularMaterial)
+    }
+    private func settingsIcon(_ item: SettingsPage, size: CGFloat) -> some View {
+        Image(systemName: item.symbol).font(.system(size: size * 0.56, weight: .medium))
+            .frame(width: size, height: size).foregroundStyle(.white)
+            .background(item.tint.gradient, in: RoundedRectangle(cornerRadius: size * 0.23))
+            .accessibilityHidden(true)
+    }
+    @ViewBuilder private var content: some View {
+        switch page {
+        case .general:
                 Form {
                     Section("One fixed sheet") {
                         Stepper("Slots: \(draft.slotLimit)", value: $draft.slotLimit, in: 1...100)
@@ -25,7 +134,8 @@ struct PadSettingsView: View {
                     Section("Focused tasks") {
                         Text("A resting row is one line. Focus expands it to up to five ruled lines. New task text is limited to five visual lines and 500 characters; notes are separate.").font(.caption).foregroundStyle(.secondary)
                     }
-                }.formStyle(.grouped).tabItem { Text("Pad") }
+                }.formStyle(.grouped)
+        case .appearance:
                 Form {
                     Section("Paper") {
                         Picker("Theme", selection: $theme) { ForEach(PadTheme.allCases, id: \.self) { Text($0.title).tag($0) } }
@@ -39,37 +149,48 @@ struct PadSettingsView: View {
                         Text("Unavailable fonts fall back to the system font. Fonts installed on this Mac, including Maple Mono NF, appear in the list.").font(.caption).foregroundStyle(.secondary)
                         Text("The quick brown fox · 07:30").font(draft.font).padding(.vertical, 8)
                     }
-                }.formStyle(.grouped).tabItem { Text("Appearance") }
-                Form {
-                    ChromeForm(title: "Header", options: $draft.header)
-                    ChromeForm(title: "Footer", options: $draft.footer)
-                    Section("Date and text formats") {
-                        TextField("Date format (empty = system locale)", text: $draft.dateFormat)
-                        Text(PadDay.display(model.state?.sheet.day ?? model.today, format: draft.dateFormat)).font(.caption).foregroundStyle(.secondary)
-                        Text("Custom date formats use Foundation patterns, for example EEE, d MMM. Text fields support {date}, {used}, {limit}, {completed} and {remaining}. Unknown tokens stay literal.").font(.caption).foregroundStyle(.secondary)
-                    }
-                }.formStyle(.grouped).tabItem { Text("Header & Footer") }
-                Form {
-                    Section {
-                        Text("Visible all day on selected weekdays. The time is a reminder on the row, not a notification. Each occurrence takes one slot and starts pending on its next scheduled day.").font(.caption).foregroundStyle(.secondary)
-                        ForEach($draft.schedules) { $rule in
-                            RepeatRuleEditor(rule: $rule, remove: { draft.schedules.removeAll { $0.id == rule.id } })
-                        }
-                        Button("Create repeating task") { draft.schedules.append(RepeatTask(text: "")) }
-                    }
-                }.formStyle(.grouped).tabItem { Text("Repeating Tasks") }
+                }.formStyle(.grouped)
+        case .header: chrome("Header", options: $draft.header)
+        case .footer: chrome("Footer", options: $draft.footer)
+        case .repeating:
+            Form {
+                Section {
+                    Text("Visible all day on selected weekdays. The time is shown on the row, not sent as a notification. Each occurrence takes one slot and starts pending on its next scheduled day.").font(.caption).foregroundStyle(.secondary)
+                }
+                ForEach($draft.schedules) { $rule in
+                    Section { RepeatRuleEditor(rule: $rule, remove: { draft.schedules.removeAll { $0.id == rule.id } }) }
+                }
+                Section { Button("Create repeating task") { draft.schedules.append(RepeatTask(text: "")) } }
+            }.formStyle(.grouped)
+        }
+    }
+    private func chrome(_ title: String, options: Binding<ChromeSettings>) -> some View {
+        Form {
+            ChromeForm(title: title, options: options)
+            Section("Date and text formats") {
+                TextField("Date format", text: $draft.dateFormat, prompt: Text("System locale"))
+                Text(PadDay.display(model.state?.sheet.day ?? model.today, format: draft.dateFormat)).font(.caption).foregroundStyle(.secondary)
+                Text("Leave the date format empty to use the system locale. Custom patterns include EEE, d MMM or yyyy/MM/dd.").font(.caption).foregroundStyle(.secondary)
+                Text("Text supports {date}, {used}, {limit}, {completed} and {remaining}. For example: {used} out of {limit} slots taken. Unknown tokens stay literal.").font(.caption).foregroundStyle(.secondary)
             }
+        }.formStyle(.grouped)
+    }
+    private var actions: some View {
+        VStack(spacing: 0) {
             Divider()
-            if let message = model.message { Text(message).font(.caption).foregroundStyle(.red).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 20).padding(.top, 8) }
+            if let message = model.message {
+                Text(message).font(.caption).foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 20).padding(.top, 12)
+            }
             HStack {
-                Text("Settings are always available with ⌘,").font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button("Cancel") { model.showSettings = false }.keyboardShortcut(.cancelAction)
                 Button("Save") {
-                    if model.applySettings(draft) { model.setTheme(theme); if !model.unsaved { model.showSettings = false } }
+                    if model.applySettings(draft, theme: theme) { model.showSettings = false }
                 }.keyboardShortcut(.defaultAction).disabled(!model.canEdit || model.unsaved)
             }.padding(16)
-        }.frame(width: 570, height: 630).preferredColorScheme(.light)
+        }
     }
 }
 

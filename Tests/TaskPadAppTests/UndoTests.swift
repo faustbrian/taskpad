@@ -37,8 +37,14 @@ final class UndoTests: XCTestCase {
             var day = "2026-10-10"
             let model = AppModel(directory: directory, dateProvider: { day })
             let id = model.state!.sheet.tasks[0].id
+            model.startEditing(id)
             model.changeText(id, text: "Yesterday")
             model.finishEditing()
+            XCTAssertEqual(model.state!.sheet.used, 1)
+            model.undo()
+            XCTAssertEqual(model.state!.sheet.used, 0)
+            model.redo()
+            XCTAssertEqual(model.state!.sheet.tasks[0].text, "Yesterday")
             day = "2026-10-11"
             model.checkDay()
             model.confirmRollover()
