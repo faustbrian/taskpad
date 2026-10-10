@@ -1,15 +1,15 @@
 import XCTest
 import AppKit
-import TaskpadCore
-@testable import Taskpad
+import TaskPadCore
+@testable import TaskPad
 
 final class UndoTests: XCTestCase {
     func testEditingAndAnotherTaskActionUndoIndependently() async throws {
         try await MainActor.run {
-            let directory = FileManager.default.temporaryDirectory.appendingPathComponent("taskpad-undo-\(UUID())")
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent("TaskPad-undo-\(UUID())")
             defer { try? FileManager.default.removeItem(at: directory) }
             let store = try PadStore(directory: directory, today: "2026-10-10")
-            try store.editSheet { try $0.add("A"); try $0.add("B") }
+            try store.editSheet { $0.tasks[0].text = "A"; $0.tasks[1].text = "B" }
             let model = AppModel(directory: directory, dateProvider: { "2026-10-10" })
             let a = model.state!.sheet.tasks[0].id
             let b = model.state!.sheet.tasks[1].id
@@ -32,11 +32,10 @@ final class UndoTests: XCTestCase {
 
     func testRolloverDoesNotLeaveUndoThatCanRestoreYesterdaysSheet() async throws {
         try await MainActor.run {
-            let directory = FileManager.default.temporaryDirectory.appendingPathComponent("taskpad-undo-\(UUID())")
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent("TaskPad-undo-\(UUID())")
             defer { try? FileManager.default.removeItem(at: directory) }
             var day = "2026-10-10"
             let model = AppModel(directory: directory, dateProvider: { day })
-            model.addTask()
             let id = model.state!.sheet.tasks[0].id
             model.changeText(id, text: "Yesterday")
             model.finishEditing()
@@ -45,7 +44,7 @@ final class UndoTests: XCTestCase {
             model.confirmRollover()
             model.undo()
             XCTAssertEqual(model.state!.sheet.day, day)
-            XCTAssertTrue(model.state!.sheet.tasks.isEmpty)
+            XCTAssertEqual(model.state!.sheet.used, 0)
             XCTAssertFalse(model.unsaved)
             XCTAssertEqual(try PadStore(directory: directory, today: day).state, model.state)
         }
@@ -59,10 +58,11 @@ final class UndoTests: XCTestCase {
                 { $0.move($1, offset: -1) }
             ]
             for action in actions {
-                let directory = FileManager.default.temporaryDirectory.appendingPathComponent("taskpad-undo-\(UUID())")
+                let directory = FileManager.default.temporaryDirectory.appendingPathComponent("TaskPad-undo-\(UUID())")
                 defer { try? FileManager.default.removeItem(at: directory) }
                 let store = try PadStore(directory: directory, today: "2026-10-10")
-                try store.editSheet { try $0.add("A"); try $0.add("B"); $0.notes = "Original notes" }
+                try store.editSheet { $0.tasks[0].text = "A"; $0.tasks[1].text = "B"; $0.notes = "Original notes" }
+                var settings = store.state.settings; settings.notesEnabled = true; try store.applySettings(settings)
                 let original = store.state.sheet
                 let model = AppModel(directory: directory, dateProvider: { "2026-10-10" })
                 model.startNotes()

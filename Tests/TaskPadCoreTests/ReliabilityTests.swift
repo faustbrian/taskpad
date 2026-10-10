@@ -1,14 +1,14 @@
 import XCTest
-@testable import TaskpadCore
+@testable import TaskPadCore
 
 final class ReliabilityTests: XCTestCase {
     private func isolated(_ body: (URL) throws -> Void) throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("taskpad-reliability-\(UUID())")
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("TaskPad-reliability-\(UUID())")
         defer { try? FileManager.default.removeItem(at: directory) }
         try body(directory)
     }
 
-    // TP-04: a failed save cannot change the last good disk snapshot.
+    // TPR-04: a failed save cannot change the last good disk snapshot.
     func testFailedEditKeepsLastDurableStateAndCanRetryCandidate() throws {
         try isolated { directory in
             var fail = false
@@ -16,7 +16,7 @@ final class ReliabilityTests: XCTestCase {
                 if fail { throw CocoaError(.fileWriteNoPermission) }
                 try data.write(to: file, options: .atomic)
             })
-            try store.editSheet { try $0.add("Good") }
+            try store.editSheet { $0.tasks[0].text = "Good" }
             let previous = store.state
             var candidate = previous
             candidate.sheet.tasks[0].text = "Recoverable edit"
@@ -30,7 +30,7 @@ final class ReliabilityTests: XCTestCase {
         }
     }
 
-    // TP-08: actual filesystem writes, faults at each selected durable boundary.
+    // TPR-08: actual filesystem writes, faults at each selected durable boundary.
     func testRolloverInterruptionNeverLosesPreviousAndRetryIsIdempotent() throws {
         for failingBoundary in ["archive", "replacement", "none"] {
             try isolated { directory in
@@ -42,8 +42,8 @@ final class ReliabilityTests: XCTestCase {
                     try data.write(to: file, options: .atomic)
                 })
                 try store.editSheet {
-                    try $0.add("**Carry**\nwith line")
-                    try $0.add("Completed")
+                     $0.tasks[0].text = "**Carry**\nwith line"
+                    $0.tasks[1].text = "Completed"
                     $0.tasks[0].priority = .low
                     $0.tasks[0].color = .purple
                     $0.tasks[1].isComplete = true
@@ -66,7 +66,9 @@ final class ReliabilityTests: XCTestCase {
                     try recovered.confirmRollover(to: "2026-10-14")
                 } else { try store.confirmRollover(to: "2026-10-14") }
                 let recovered = try PadStore(directory: directory, today: "2026-10-14")
-                XCTAssertEqual(recovered.state.sheet.tasks, [previous.tasks[0]])
+                XCTAssertEqual(recovered.state.sheet.tasks[0], previous.tasks[0])
+                XCTAssertEqual(recovered.state.sheet.used, 1)
+                XCTAssertEqual(recovered.state.sheet.tasks.count, 30)
                 XCTAssertEqual(recovered.state.sheet.notes, "WORK")
                 XCTAssertEqual(recovered.state.sheet.closingNotes, "")
                 try recovered.beginRollover(to: "2026-10-14")
@@ -86,12 +88,12 @@ final class ReliabilityTests: XCTestCase {
         }
     }
 
-    // TP-02: stable identity survives edit, toggle twice, reorder and delete.
+    // TPR-02: stable identity survives edit, toggle twice, reorder and delete.
     func testMixedTaskMutationDoesNotSortOrAffectOtherRows() throws {
         try isolated { directory in
             let store = try PadStore(directory: directory, today: "2026-10-10")
             try store.editSheet { sheet in
-                for text in ["A", "B", "C", "D"] { try sheet.add(text) }
+                for (index, text) in ["A", "B", "C", "D"].enumerated() { sheet.tasks[index].text = text }
             }
             let original = store.state.sheet.tasks
             try store.editSheet { sheet in
@@ -101,23 +103,25 @@ final class ReliabilityTests: XCTestCase {
                 sheet.tasks[1].priority = .medium
                 sheet.tasks[1].color = .red
                 try sheet.move(original[3].id, offset: -3)
-                sheet.tasks.removeAll { $0.id == original[2].id }
+                let clearIndex = sheet.tasks.firstIndex { $0.id == original[2].id }!
+                sheet.tasks[clearIndex].clear()
             }
             let reopened = try PadStore(directory: directory, today: "2026-10-10")
-            XCTAssertEqual(reopened.state.sheet.tasks.map(\.text), ["D", "A", "Edited B"])
+            XCTAssertEqual(Array(reopened.state.sheet.tasks.prefix(4)).map(\.text), ["D", "A", "Edited B", ""])
+            XCTAssertEqual(reopened.state.sheet.tasks.count, 30)
             XCTAssertEqual(reopened.state.sheet.tasks[1], original[0])
             XCTAssertFalse(reopened.state.sheet.tasks[2].isComplete)
             XCTAssertEqual(reopened.state.sheet.tasks[2].color, .red)
         }
     }
 
-    // TP-06/07: decisions are independent and retained; completed selection rejected.
+    // TPR-06/07: decisions are independent and retained; completed selection rejected.
     func testAllNoneNotesOnlyAndRetainedDecision() throws {
         try isolated { directory in
             let store = try PadStore(directory: directory, today: "2026-10-10")
             try store.editSheet {
-                try $0.add("One")
-                try $0.add("Done")
+                $0.tasks[0].text = "One"
+                $0.tasks[1].text = "Done"
                 $0.tasks[1].isComplete = true
                 $0.notes = "WORK"
             }
@@ -135,12 +139,12 @@ final class ReliabilityTests: XCTestCase {
             XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("Archives").path))
             try reopened.editDraft { $0.selectedTaskIDs = [] }
             try reopened.confirmRollover(to: "2026-10-12")
-            XCTAssertTrue(reopened.state.sheet.tasks.isEmpty)
+            XCTAssertEqual(reopened.state.sheet.used, 0)
             XCTAssertEqual(reopened.state.sheet.notes, "WORK")
         }
     }
 
-    // TP-09/10: civil dates, not elapsed 24-hour periods or UTC dates.
+    // TPR-09/10: civil dates, not elapsed 24-hour periods or UTC dates.
     func testLocalDateTimezoneAndDSTBoundaries() throws {
         let formatter = ISO8601DateFormatter()
         let midnight = formatter.date(from: "2026-10-10T22:30:00Z")!

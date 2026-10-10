@@ -2,13 +2,13 @@
 import PackageDescription
 
 let package = Package(
-    name: "Taskpad",
+    name: "TaskPad",
     platforms: [.macOS(.v14)],
-    products: [.executable(name: "Taskpad", targets: ["Taskpad"])],
+    products: [.executable(name: "TaskPad", targets: ["TaskPad"])],
     targets: [
-        .target(name: "TaskpadCore"),
-        .executableTarget(name: "Taskpad", dependencies: ["TaskpadCore"]),
-        .testTarget(name: "TaskpadCoreTests", dependencies: ["TaskpadCore"]),
-        .testTarget(name: "TaskpadAppTests", dependencies: ["Taskpad", "TaskpadCore"])
+        .target(name: "TaskPadCore"),
+        .executableTarget(name: "TaskPad", dependencies: ["TaskPadCore"]),
+        .testTarget(name: "TaskPadCoreTests", dependencies: ["TaskPadCore"]),
+        .testTarget(name: "TaskPadAppTests", dependencies: ["TaskPad", "TaskPadCore"])
     ]
 )

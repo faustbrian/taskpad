@@ -2,9 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
     <key>CFBundleIdentifier</key><string>com.faustbrian.taskpad</string>
-    <key>CFBundleName</key><string>Taskpad</string>
-    <key>CFBundleDisplayName</key><string>Taskpad</string>
-    <key>CFBundleExecutable</key><string>Taskpad</string>
+    <key>CFBundleName</key><string>TaskPad</string>
+    <key>CFBundleDisplayName</key><string>TaskPad</string>
+    <key>CFBundleExecutable</key><string>TaskPad</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>1.0.0</string>
     <key>CFBundleVersion</key><string>1</string>
