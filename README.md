@@ -8,11 +8,16 @@ calendar or history browser.
 
 Requires macOS 14+ and Xcode 15+ (Swift 5.9+). Builds for this Mac's architecture.
 
+With `just` installed:
+
 ```sh
-./scripts/build.sh
-open build/TaskPad.app
-./scripts/test.sh
+just test  # Run the test suite
+just build # Build build/TaskPad.app
+just run   # Build from source and open the app
 ```
+
+Run `just` to list commands. Without `just`, use `./scripts/test.sh`,
+`./scripts/build.sh`, and `open build/TaskPad.app` directly.
 
 The release app is ad-hoc signed for local use; no developer account or server
 is needed. Open `Package.swift` in Xcode to develop. Build/test scripts remove
