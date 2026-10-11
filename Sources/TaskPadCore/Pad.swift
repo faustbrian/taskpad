@@ -39,17 +39,20 @@ public struct RepeatTask: Codable, Equatable, Identifiable {
     public var minute = 30
     public var priority: TaskPriority = .none
     public var color: TaskColor?
+    public var effort: Int?
     public init(text: String) { self.text = text }
     public var time: String { String(format: "%02d:%02d", hour, minute) }
     public func isDue(on day: String) -> Bool { PadDay.weekday(day).map { weekdays.contains($0) } ?? false }
     public func validate() throws {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               TaskInput.accepts(text), !weekdays.isEmpty, weekdays.isSubset(of: Set(1...7)),
-              (0...23).contains(hour), (0...59).contains(minute), (0...9).contains(priority.rawValue) else { throw PadError.invalidSchedule }
+              (0...23).contains(hour), (0...59).contains(minute), (0...9).contains(priority.rawValue),
+              EffortScale.accepts(effort) else { throw PadError.invalidSchedule }
     }
     public func occurrence() -> PadTask {
         var task = PadTask(text: text)
         task.scheduleID = id; task.scheduledTime = time; task.priority = priority; task.color = color
+        task.effort = effort
         return task
     }
 }
@@ -62,6 +65,10 @@ public struct PadSettings: Codable, Equatable {
     public var fontSize: Double = 16
     public var dateFormat = ""
     public var windowTitle = "TaskPad"
+    public var doubleClickAction: DoubleClickAction = .edit
+    public var priorityDisplay: PriorityDisplay = .numbers
+    public var effortScale: EffortScale = .fibonacci
+    public var extendedEffort = false
     public var header = ChromeSettings()
     public var footer: ChromeSettings = {
         var value = ChromeSettings(); value.visible = false; value.showTitle = true
@@ -70,7 +77,7 @@ public struct PadSettings: Codable, Equatable {
     }()
     public var schedules: [RepeatTask] = []
     public init() {}
-    private enum CodingKeys: String, CodingKey { case slotLimit, carryMode, notesEnabled, fontName, fontSize, dateFormat, windowTitle, header, footer, schedules }
+    private enum CodingKeys: String, CodingKey { case slotLimit, carryMode, notesEnabled, fontName, fontSize, dateFormat, windowTitle, doubleClickAction, priorityDisplay, effortScale, extendedEffort, header, footer, schedules }
     public init(from decoder: Decoder) throws {
         self.init(); let c = try decoder.container(keyedBy: CodingKeys.self)
         slotLimit = try c.decodeIfPresent(Int.self, forKey: .slotLimit) ?? slotLimit
@@ -80,6 +87,10 @@ public struct PadSettings: Codable, Equatable {
         fontSize = try c.decodeIfPresent(Double.self, forKey: .fontSize) ?? fontSize
         dateFormat = try c.decodeIfPresent(String.self, forKey: .dateFormat) ?? dateFormat
         windowTitle = try c.decodeIfPresent(String.self, forKey: .windowTitle) ?? windowTitle
+        doubleClickAction = try c.decodeIfPresent(DoubleClickAction.self, forKey: .doubleClickAction) ?? doubleClickAction
+        priorityDisplay = try c.decodeIfPresent(PriorityDisplay.self, forKey: .priorityDisplay) ?? priorityDisplay
+        effortScale = try c.decodeIfPresent(EffortScale.self, forKey: .effortScale) ?? effortScale
+        extendedEffort = try c.decodeIfPresent(Bool.self, forKey: .extendedEffort) ?? extendedEffort
         header = try c.decodeIfPresent(ChromeSettings.self, forKey: .header) ?? header
         footer = try c.decodeIfPresent(ChromeSettings.self, forKey: .footer) ?? footer
         schedules = try c.decodeIfPresent([RepeatTask].self, forKey: .schedules) ?? schedules
@@ -115,6 +126,7 @@ public struct PadTask: Codable, Equatable, Identifiable {
     public var isComplete = false
     public var priority: TaskPriority = .none
     public var color: TaskColor?
+    public var effort: Int?
     public var scheduleID: UUID?
     public var scheduledTime: String?
     public init(text: String = "") { self.text = text }
@@ -180,7 +192,7 @@ public struct PadState: Codable, Equatable {
     public func validate() throws {
         guard version == 2, PadDay.isValid(sheet.day),
               Set(sheet.tasks.map(\.id)).count == sheet.tasks.count,
-              sheet.tasks.allSatisfy({ (0...9).contains($0.priority.rawValue) }),
+              sheet.tasks.allSatisfy({ (0...9).contains($0.priority.rawValue) && EffortScale.accepts($0.effort) }),
               Set(sheet.tasks.compactMap(\.scheduleID)).count == sheet.tasks.compactMap(\.scheduleID).count else { throw PadError.invalidData }
         try settings.validate()
         guard sheet.tasks.count == settings.slotLimit else { throw PadError.invalidData }
@@ -288,6 +300,7 @@ public final class PadStore {
                     if oldRules[id] == rule { continue }
                     next.sheet.tasks[index].text = rule.text; next.sheet.tasks[index].scheduledTime = rule.time
                     next.sheet.tasks[index].priority = rule.priority; next.sheet.tasks[index].color = rule.color
+                    next.sheet.tasks[index].effort = rule.effort
                 } else { next.sheet.tasks[index].scheduleID = nil; next.sheet.tasks[index].scheduledTime = nil }
             }
         }

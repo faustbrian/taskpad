@@ -10,8 +10,25 @@ extension PadSettings {
             ?? NSFont.systemFont(ofSize: fontSize)
     }
     var font: Font { Font(nativeFont) }
-    var textTopInset: CGFloat { max(0, (rowHeight - (nativeFont.ascender - nativeFont.descender + nativeFont.leading)) / 2) }
+    var textTopInset: CGFloat { TaskLayout.topInset(font: nativeFont, rowHeight: rowHeight) }
     var rowHeight: CGFloat { ceil(max(40, fontSize * 2.25)) }
+    var metadataFontSize: CGFloat { max(12, min(18, fontSize * 0.75)) }
+    var scheduledBadgeWidth: CGFloat { ceil(metadataFontSize * 3.5 + 12) }
+    func priorityBadgeWidth(_ priority: TaskPriority) -> CGFloat {
+        let label = priorityDisplay.label(priority) as NSString
+        let width = label.size(withAttributes: [.font: NSFont.systemFont(ofSize: metadataFontSize, weight: .semibold)]).width
+        return ceil(max(metadataFontSize * 1.6 + 8, width + 16))
+    }
+    func effortBadgeWidth(_ effort: Int) -> CGFloat {
+        let label = (effortScale.label(effort) ?? "") as NSString
+        return ceil(max(28, label.size(withAttributes: [.font: NSFont.systemFont(ofSize: metadataFontSize - 1, weight: .medium)]).width + 14))
+    }
+    func taskTextWidth(_ task: PadTask, sheetWidth: CGFloat, theme: PadTheme) -> CGFloat {
+        let metadata = (task.scheduledTime == nil ? 0 : scheduledBadgeWidth)
+            + (task.priority.rawValue == 0 ? 0 : priorityBadgeWidth(task.priority))
+            + (task.effort.map(effortBadgeWidth) ?? 0)
+        return max(40, sheetWidth - theme.textInset - 24 - metadata)
+    }
 }
 
 extension PadTheme {
@@ -73,11 +90,17 @@ func slotActions(_ task: PadTask, model: AppModel) -> [SlotAction] {
                    SlotAction(id: "toggle", title: task.isComplete ? "Mark pending" : "Mark done", perform: { model.toggle(task.id) }),
                    SlotAction(id: "s1", separator: true)]
     actions += TaskPriority.allCases.map { priority in
-        SlotAction(id: "p\(priority.rawValue)", title: priority.rawValue == 0 ? "Priority 0 · None" : "Priority \(priority.rawValue)", selected: task.priority == priority, perform: { model.setPriority(task.id, priority) })
+        SlotAction(id: "p\(priority.rawValue)", title: priority.rawValue == 0 ? "Priority 0 · None" : "Priority \(model.settings.priorityDisplay.label(priority))", selected: task.priority == priority, perform: { model.setPriority(task.id, priority) })
     }
     actions += [SlotAction(id: "s2", separator: true), SlotAction(id: "ink", title: "Default ink", selected: task.color == nil, perform: { model.setColor(task.id, nil) })]
     actions += TaskColor.allCases.map { color in
         SlotAction(id: color.rawValue, title: color.rawValue.capitalized + " ink", selected: task.color == color, perform: { model.setColor(task.id, color) })
+    }
+    actions += [SlotAction(id: "effort-separator", separator: true),
+                SlotAction(id: "effort-none", title: "No effort estimate", selected: task.effort == nil, perform: { model.setEffort(task.id, nil) })]
+    actions += model.settings.effortChoices(retaining: task.effort).map { size in
+        SlotAction(id: "effort-\(size)", title: "Effort \(model.settings.effortScale.label(size) ?? "")", selected: task.effort == size,
+                   perform: { model.setEffort(task.id, size) })
     }
     actions += [SlotAction(id: "s3", separator: true),
                 SlotAction(id: "up", title: "Move up", perform: { model.move(task.id, offset: -1) }),

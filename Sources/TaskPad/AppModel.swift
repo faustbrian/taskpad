@@ -10,6 +10,8 @@ final class AppModel: ObservableObject {
     @Published var unsaved = false
     @Published var showRollover = false
     @Published var showSettings = false
+    @Published var settingsIsKey = false
+    @Published private(set) var settingsSessionID = UUID()
     @Published var editingTask: UUID?
     @Published var editingNotes = false
     @Published var selectedTask: UUID?
@@ -23,12 +25,22 @@ final class AppModel: ObservableObject {
     var today: String { dateProvider() }
     var theme: PadTheme { state?.theme ?? .karst }
     var canEdit: Bool { state != nil && state?.draft == nil && !showRollover }
+    var canUseSheetCommands: Bool { canEdit && !settingsIsKey }
     var activeUndoManager: UndoManager? {
         if let editor = NSApp?.keyWindow?.firstResponder as? NSTextView, editor.isEditable { return editor.undoManager }
+        if settingsIsKey { return nil }
         return canEdit ? undoManager : nil
     }
     func undo() { activeUndoManager?.undo(); objectWillChange.send() }
     func redo() { activeUndoManager?.redo(); objectWillChange.send() }
+
+    func beginSettings() {
+        guard canEdit, !showSettings else { return }
+        finishEditing()
+        if !unsaved { message = nil }
+        settingsSessionID = UUID()
+        showSettings = true
+    }
 
     init(directory suppliedDirectory: URL? = nil, dateProvider: @escaping () -> String = { PadDay.local() }) {
         self.dateProvider = dateProvider; undoManager.groupsByEvent = false
@@ -111,6 +123,21 @@ final class AppModel: ObservableObject {
             guard let index = sheet.tasks.firstIndex(where: { $0.id == id }) else { return }; sheet.tasks[index].isComplete.toggle()
         }
     }
+    func toggleFromSpace(_ id: UUID) {
+        guard canEdit, let tasks = state?.sheet.tasks, let index = tasks.firstIndex(where: { $0.id == id }) else { return }
+        let wasPending = !tasks[index].isComplete
+        toggle(id)
+        if wasPending, state?.sheet.tasks[index].isComplete == true, tasks.indices.contains(index + 1) {
+            select(tasks[index + 1].id)
+        }
+    }
+    func doubleClick(_ id: UUID) {
+        guard canEdit else { return }
+        switch settings.doubleClickAction {
+        case .edit: startEditing(id)
+        case .toggle: toggle(id)
+        }
+    }
     func delete(_ id: UUID) {
         finishEditing(); selectedTask = id
         editSheet("Clear Slot") { sheet in
@@ -132,6 +159,15 @@ final class AppModel: ObservableObject {
             guard let index = sheet.tasks.firstIndex(where: { $0.id == id }) else { return }; sheet.tasks[index].color = value
         }
     }
+    func setEffort(_ id: UUID, _ value: Int?) {
+        guard canEdit, let task = state?.sheet.tasks.first(where: { $0.id == id }) else { return }
+        if let value, !settings.effortChoices(retaining: task.effort).contains(value) { return }
+        finishEditing()
+        editSheet("Change Effort") { sheet in
+            guard let index = sheet.tasks.firstIndex(where: { $0.id == id }) else { return }
+            sheet.tasks[index].effort = value
+        }
+    }
     func setTheme(_ value: PadTheme) { guard var next = state else { return }; finishEditing(); next = state!; next.theme = value; save(next) }
     @discardableResult func applySettings(_ value: PadSettings, theme selectedTheme: PadTheme? = nil) -> Bool {
         guard let store, !unsaved else { message = "Save pending edits before changing settings."; return false }
@@ -141,7 +177,7 @@ final class AppModel: ObservableObject {
             // A rule is another task entry surface, not an escape from the row bound.
             let existing = Dictionary(uniqueKeysWithValues: settings.schedules.map { ($0.id, $0.text) })
             for rule in value.schedules where existing[rule.id] != rule.text {
-                let width = max(40, sheetWidth - (selectedTheme ?? theme).textInset - 24 - 48 - (rule.priority.rawValue == 0 ? 0 : 24))
+                let width = value.taskTextWidth(rule.occurrence(), sheetWidth: sheetWidth, theme: selectedTheme ?? theme)
                 guard TaskLayout.lines(rule.text, width: width, font: value.nativeFont) <= TaskInput.maxLines else { throw PadError.taskTooLong }
             }
             var candidate = try store.settingsCandidate(value)

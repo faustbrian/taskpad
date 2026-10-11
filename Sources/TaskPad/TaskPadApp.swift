@@ -20,23 +20,28 @@ struct TaskPadApp: App {
             }
             CommandGroup(replacing: .newItem) {}
             CommandGroup(replacing: .appSettings) {
-                Button("Settings…") { model.finishEditing(); model.showSettings = true }.keyboardShortcut(",").disabled(!model.canEdit)
+                SettingsMenuButton(model: model)
             }
             CommandMenu("Sheet") {
                 Button("Edit Selected Task") { if let id = model.selectedTask { model.startEditing(id) } }
-                    .keyboardShortcut("e").disabled(!model.canEdit || model.selectedTask == nil)
+                    .keyboardShortcut("e").disabled(!model.canUseSheetCommands || model.selectedTask == nil)
                 Button("Complete / Uncomplete") { if let id = model.selectedTask { model.toggle(id) } }
-                    .keyboardShortcut(.return).disabled(!model.canEdit || model.selectedTask == nil || model.editingTask != nil || model.editingNotes)
+                    .keyboardShortcut(.return).disabled(!model.canUseSheetCommands || model.selectedTask == nil || model.editingTask != nil || model.editingNotes)
                 Button("Clear Selected Slot") { if let id = model.selectedTask { model.delete(id) } }
-                    .keyboardShortcut(.delete).disabled(!model.canEdit || model.selectedTask == nil || model.editingTask != nil || model.editingNotes)
+                    .keyboardShortcut(.delete).disabled(!model.canUseSheetCommands || model.selectedTask == nil || model.editingTask != nil || model.editingNotes)
                 Button("Move Task Up") { if let id = model.selectedTask { model.move(id, offset: -1) } }
-                    .keyboardShortcut(.upArrow, modifiers: [.option, .command]).disabled(!model.canEdit || model.selectedTask == nil || model.editingTask != nil || model.editingNotes)
+                    .keyboardShortcut(.upArrow, modifiers: [.option, .command]).disabled(!model.canUseSheetCommands || model.selectedTask == nil || model.editingTask != nil || model.editingNotes)
                 Button("Move Task Down") { if let id = model.selectedTask { model.move(id, offset: 1) } }
-                    .keyboardShortcut(.downArrow, modifiers: [.option, .command]).disabled(!model.canEdit || model.selectedTask == nil || model.editingTask != nil || model.editingNotes)
+                    .keyboardShortcut(.downArrow, modifiers: [.option, .command]).disabled(!model.canUseSheetCommands || model.selectedTask == nil || model.editingTask != nil || model.editingNotes)
                 Divider()
-                Button("Edit Notes") { model.startNotes() }.keyboardShortcut("n", modifiers: [.command, .shift]).disabled(!model.canEdit || !model.settings.notesEnabled)
+                Button("Edit Notes") { model.startNotes() }.keyboardShortcut("n", modifiers: [.command, .shift]).disabled(!model.canUseSheetCommands || !model.settings.notesEnabled)
             }
         }
+        Settings {
+            PadSettingsView(model: model)
+        }
+        .defaultSize(width: 780, height: 680)
+        .windowResizability(.contentMinSize)
     }
 }
 

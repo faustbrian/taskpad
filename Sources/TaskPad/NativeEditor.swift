@@ -4,6 +4,10 @@ import TaskPadCore
 
 /// Shared native measurement keeps editor expansion on the pad's ruled grid.
 enum TaskLayout {
+    static func topInset(font: NSFont, rowHeight: CGFloat) -> CGFloat {
+        // Both renderers use an integral origin, avoiding different pixel rounding.
+        max(0, ((rowHeight - (font.ascender - font.descender + font.leading)) / 2).rounded())
+    }
     static func lines(_ text: String, width: CGFloat, font: NSFont) -> Int {
         let storage = NSTextStorage(string: text.isEmpty ? " " : text, attributes: [.font: font])
         let manager = NSLayoutManager(); let container = NSTextContainer(size: NSSize(width: max(40, width), height: .greatestFiniteMagnitude))
@@ -26,12 +30,14 @@ struct NativeEditor: NSViewRepresentable {
     var availableWidth: CGFloat = 300
     var change: (String) -> Void
     var finish: () -> Void
-    var navigate: ((Int) -> Void)? = nil
+    /// Returns whether navigation installs a different editor.
+    var navigate: ((Int) -> Bool)? = nil
     var rejected: () -> Void = {}
+    var initialInput: RowTypingInput? = nil
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
     func makeNSView(context: Context) -> NSScrollView {
-        let scroll = NSScrollView(); scroll.drawsBackground = false; scroll.hasVerticalScroller = true
+        let scroll = NSScrollView(); scroll.drawsBackground = false
         scroll.autohidesScrollers = true; scroll.borderType = .noBorder
         let editor = TaskTextView(); editor.isRichText = false; editor.allowsUndo = true; editor.drawsBackground = false
         editor.isVerticallyResizable = true; editor.isHorizontallyResizable = false; editor.autoresizingMask = [.width]
@@ -39,17 +45,31 @@ struct NativeEditor: NSViewRepresentable {
         editor.textContainerInset = NSSize(width: 0, height: 0); editor.minSize = .zero
         editor.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         editor.string = text; editor.setAccessibilityLabel(label); editor.delegate = context.coordinator
-        configure(editor); scroll.documentView = editor
-        DispatchQueue.main.async { editor.window?.makeFirstResponder(editor); editor.setSelectedRange(NSRange(location: editor.string.utf16.count, length: 0)) }
+        configure(editor); scroll.documentView = editor; configureScrolling(scroll)
+        DispatchQueue.main.async {
+            guard editor.window?.makeFirstResponder(editor) == true else { return }
+            editor.setSelectedRange(NSRange(location: editor.string.utf16.count, length: 0))
+            initialInput?.deliver(to: editor)
+        }
         return scroll
     }
     private func configure(_ editor: NSTextView) {
         editor.font = font; editor.textColor = ink; editor.insertionPointColor = ink
-        let paragraph = NSMutableParagraphStyle(); paragraph.minimumLineHeight = rowHeight; paragraph.maximumLineHeight = rowHeight
+        let paragraph = NSMutableParagraphStyle()
+        let naturalHeight = editor.layoutManager?.defaultLineHeight(for: font) ?? (font.ascender - font.descender + font.leading)
+        paragraph.lineSpacing = max(0, rowHeight - naturalHeight)
         editor.defaultParagraphStyle = paragraph
-        let baseline = (rowHeight - (font.ascender - font.descender + font.leading)) / 2
-        editor.typingAttributes = [.font: font, .foregroundColor: ink, .paragraphStyle: paragraph, .baselineOffset: baseline]
-        if editor.textStorage?.length ?? 0 > 0 { editor.textStorage?.addAttributes([.paragraphStyle: paragraph, .baselineOffset: baseline], range: NSRange(location: 0, length: editor.string.utf16.count)) }
+        editor.textContainerInset = NSSize(width: 0, height: TaskLayout.topInset(font: font, rowHeight: rowHeight))
+        editor.typingAttributes = [.font: font, .foregroundColor: ink, .paragraphStyle: paragraph]
+        if editor.textStorage?.length ?? 0 > 0 {
+            editor.textStorage?.addAttribute(.paragraphStyle, value: paragraph, range: NSRange(location: 0, length: editor.string.utf16.count))
+        }
+    }
+    private func configureScrolling(_ scroll: NSScrollView) {
+        let width = scroll.bounds.width > 40 ? scroll.bounds.width : availableWidth
+        // Rounding a font's bottom inset can add a padding-only pixel. Do not
+        // introduce a scrollbar (and narrower text) when all lines still fit.
+        scroll.hasVerticalScroller = TaskLayout.lines(text, width: width, font: font) > (bounded ? 5 : 10)
     }
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         context.coordinator.parent = self
@@ -59,6 +79,7 @@ struct NativeEditor: NSViewRepresentable {
             editor.setSelectedRange(NSRange(location: min(range.location, text.utf16.count), length: 0))
         }
         configure(editor)
+        configureScrolling(scroll)
     }
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSScrollView, context: Context) -> CGSize? {
         let width = max(40, proposal.width ?? 300)
@@ -87,13 +108,20 @@ struct NativeEditor: NSViewRepresentable {
         }
         func textView(_ textView: NSTextView, doCommandBy selector: Selector) -> Bool {
             if selector == #selector(NSResponder.insertNewline(_:)) {
-                if NSApp.currentEvent?.modifierFlags.contains(.shift) == true { return false }; parent.finish(); return true
+                let event = parent.initialInput?.currentEvent ?? NSApp.currentEvent
+                if event?.modifierFlags.contains(.shift) == true { return false }
+                parent.initialInput?.pauseForResponderChange(); parent.finish(); return true
             }
-            if selector == #selector(NSResponder.cancelOperation(_:)) { parent.finish(); return true }
+            if selector == #selector(NSResponder.cancelOperation(_:)) {
+                parent.initialInput?.pauseForResponderChange(); parent.finish(); return true
+            }
             if selector == #selector(NSResponder.insertTab(_:)) || selector == #selector(NSResponder.insertBacktab(_:)) {
                 let offset = selector == #selector(NSResponder.insertBacktab(_:)) ? -1 : 1
-                if let navigate = parent.navigate { navigate(offset) }
-                else { parent.finish() }
+                if let navigate = parent.navigate {
+                    if navigate(offset) { parent.initialInput?.pauseForResponderChange() }
+                } else {
+                    parent.initialInput?.pauseForResponderChange(); parent.finish()
+                }
                 return true
             }
             return false
@@ -109,15 +137,19 @@ private final class TaskTextView: NSTextView {
 /// A native row responder avoids intercepting Space/digits/arrows inside text editors.
 struct RowKeyboard: NSViewRepresentable {
     var active: Bool
-    var actions: [SlotAction]
+    var actions: () -> [SlotAction]
     var key: (UInt16, String, Bool) -> Bool
+    var typingInput: RowTypingInput
+    var startEditing: () -> Void
     func makeNSView(context: Context) -> RowKeyView { let view = RowKeyView(); view.setAccessibilityElement(false); return view }
     func updateNSView(_ view: RowKeyView, context: Context) {
         view.key = key; view.actions = actions; view.isActive = active
+        view.typingInput = typingInput; view.startEditing = startEditing
         if active {
             DispatchQueue.main.async { [weak view] in
                 guard let view, view.isActive, let window = view.window else { return }
                 if window.firstResponder !== view { window.makeFirstResponder(view) }
+                view.typingInput?.deliver(to: view)
             }
         }
     }
@@ -125,20 +157,37 @@ struct RowKeyboard: NSViewRepresentable {
 final class RowKeyView: NSView {
     var isActive = false
     var key: ((UInt16, String, Bool) -> Bool)?
-    var actions: [SlotAction] = []
+    var actions: () -> [SlotAction] = { [] }
+    var typingInput: RowTypingInput?
+    var startEditing: (() -> Void)?
     private var targets: [MenuTarget] = []
     override var acceptsFirstResponder: Bool { true }
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
     override func keyDown(with event: NSEvent) {
+        if !event.modifierFlags.intersection([.command, .control]).isEmpty { super.keyDown(with: event); return }
+        // More keystrokes can arrive before the new editor becomes first responder.
+        if typingInput?.isPending == true && typingInput?.isDelivering == false { typingInput?.append(event); return }
         guard isActive else { super.keyDown(with: event); return }
-        if !event.modifierFlags.intersection([.command, .option, .control]).isEmpty { super.keyDown(with: event); return }
-        if event.keyCode == 124 { openMenu(); return }
-        if key?(event.keyCode, event.charactersIgnoringModifiers ?? "", event.modifierFlags.contains(.shift)) == true { return }
+        if !event.modifierFlags.contains(.option) {
+            if event.keyCode == 124 { openMenu(); return }
+            if key?(event.keyCode, event.charactersIgnoringModifiers ?? "", event.modifierFlags.contains(.shift)) == true {
+                typingInput?.pauseForResponderChange(); return
+            }
+        }
+        let input = event.characters?.isEmpty == false ? event.characters : event.charactersIgnoringModifiers
+        if let characters = input, !characters.isEmpty,
+           characters.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) && !(0xF700...0xF8FF).contains($0.value) }),
+           let typingInput, let startEditing {
+            typingInput.append(event)
+            typingInput.pauseForResponderChange()
+            startEditing()
+            return
+        }
         super.keyDown(with: event)
     }
     private func openMenu() {
         let menu = NSMenu(); targets = []
-        for action in actions {
+        for action in actions() {
             if action.separator { menu.addItem(.separator()); continue }
             let target = MenuTarget(action.perform); targets.append(target)
             let item = NSMenuItem(title: action.title, action: #selector(MenuTarget.run), keyEquivalent: "")

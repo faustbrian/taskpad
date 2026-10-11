@@ -64,6 +64,7 @@ struct PadSettingsView: View {
     @State private var theme: PadTheme
     @State private var page: SettingsPage = .general
     @StateObject private var appearance = SettingsAppearance()
+    @Environment(\.dismiss) private var dismiss
     init(model: AppModel) { self.model = model; _draft = State(initialValue: model.settings); _theme = State(initialValue: model.theme) }
     var body: some View {
         HStack(spacing: 0) {
@@ -82,9 +83,18 @@ struct PadSettingsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(nsColor: .windowBackgroundColor))
         }
-        .frame(width: 780, height: 680)
+        .frame(minWidth: 640, minHeight: 480)
         .font(.system(size: 13)).foregroundStyle(.primary)
         .preferredColorScheme(appearance.colorScheme)
+        .background(SettingsWindowSetup(
+            opened: { model.settingsIsKey = true; model.beginSettings() },
+            resigned: { model.settingsIsKey = false },
+            closed: { model.settingsIsKey = false; model.showSettings = false }
+        ))
+        .onChange(of: model.settingsSessionID) { _, _ in
+            draft = model.settings
+            theme = model.theme
+        }
     }
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -122,17 +132,21 @@ struct PadSettingsView: View {
                 Form {
                     Section("One fixed sheet") {
                         Stepper("Slots: \(draft.slotLimit)", value: $draft.slotLimit, in: 1...100)
-                        Text("Filled and empty slots share the same fixed sheet. Lowering the limit never discards filled items.").font(.caption).foregroundStyle(.secondary)
+                        Text("Every slot is reserved. Filled slots are never removed.").font(.caption).foregroundStyle(.secondary)
                         Picker("Carry-over", selection: $draft.carryMode) {
                             Text("Auto").tag(CarryMode.automatic); Text("Ask").tag(CarryMode.ask); Text("Never").tag(CarryMode.never)
                         }
-                        Text("Auto: carry unfinished manual tasks and enabled notes. Never: start fresh with no previous tasks or notes. Repeating tasks still appear on their scheduled days. If Auto would overflow, you choose what fits.").font(.caption).foregroundStyle(.secondary)
+                        Text(carryHelp).font(.caption).foregroundStyle(.secondary)
                         Toggle("Show daily notes", isOn: $draft.notesEnabled)
                         Text("Hiding notes preserves their text.").font(.caption).foregroundStyle(.secondary)
                     }
                     Section("Window") { TextField("Window title", text: $draft.windowTitle) }
-                    Section("Focused tasks") {
-                        Text("A resting row is one line. Focus expands it to up to five ruled lines. New task text is limited to five visual lines and 500 characters; notes are separate.").font(.caption).foregroundStyle(.secondary)
+                    Section("Interactions") {
+                        Picker("Double-click a task", selection: $draft.doubleClickAction) {
+                            ForEach(DoubleClickAction.allCases, id: \.self) { Text($0.title).tag($0) }
+                        }
+                        Text("Space marks done and moves to the next slot. Left Arrow toggles without moving.")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                 }.formStyle(.grouped)
         case .appearance:
@@ -146,8 +160,21 @@ struct PadSettingsView: View {
                             ForEach(NSFontManager.shared.availableFontFamilies.sorted(), id: \.self) { Text($0).tag($0) }
                         }
                         Stepper("Font size: \(Int(draft.fontSize)) pt", value: $draft.fontSize, in: 10...32, step: 1)
-                        Text("Unavailable fonts fall back to the system font. Fonts installed on this Mac, including Maple Mono NF, appear in the list.").font(.caption).foregroundStyle(.secondary)
+                        Text("Choose an installed font. Missing fonts use the system font.").font(.caption).foregroundStyle(.secondary)
                         Text("The quick brown fox · 07:30").font(draft.font).padding(.vertical, 8)
+                    }
+                    Section("Task badges") {
+                        Picker("Priority display", selection: $draft.priorityDisplay) {
+                            ForEach(PriorityDisplay.allCases, id: \.self) { Text($0.title).tag($0) }
+                        }
+                        Picker("Effort scale", selection: $draft.effortScale) {
+                            ForEach(EffortScale.allCases, id: \.self) { Text($0.title).tag($0) }
+                        }
+                        Toggle("Extended effort scale", isOn: $draft.extendedEffort)
+                        Text(draft.effortChoices().compactMap { draft.effortScale.label($0) }.joined(separator: " · "))
+                            .font(.caption).foregroundStyle(.secondary)
+                        Text("Effort is optional. Scale changes keep relative size; hiding extended values keeps existing estimates.")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                 }.formStyle(.grouped)
         case .header: chrome("Header", options: $draft.header)
@@ -155,10 +182,10 @@ struct PadSettingsView: View {
         case .repeating:
             Form {
                 Section {
-                    Text("Visible all day on selected weekdays. The time is shown on the row, not sent as a notification. Each occurrence takes one slot and starts pending on its next scheduled day.").font(.caption).foregroundStyle(.secondary)
+                    Text("Visible all day, with a scheduled time. Each task reserves a slot; no notifications.").font(.caption).foregroundStyle(.secondary)
                 }
                 ForEach($draft.schedules) { $rule in
-                    Section { RepeatRuleEditor(rule: $rule, remove: { draft.schedules.removeAll { $0.id == rule.id } }) }
+                    Section { RepeatRuleEditor(rule: $rule, settings: draft, remove: { draft.schedules.removeAll { $0.id == rule.id } }) }
                 }
                 Section { Button("Create repeating task") { draft.schedules.append(RepeatTask(text: "")) } }
             }.formStyle(.grouped)
@@ -170,8 +197,10 @@ struct PadSettingsView: View {
             Section("Date and text formats") {
                 TextField("Date format", text: $draft.dateFormat, prompt: Text("System locale"))
                 Text(PadDay.display(model.state?.sheet.day ?? model.today, format: draft.dateFormat)).font(.caption).foregroundStyle(.secondary)
-                Text("Leave the date format empty to use the system locale. Custom patterns include EEE, d MMM or yyyy/MM/dd.").font(.caption).foregroundStyle(.secondary)
-                Text("Text supports {date}, {used}, {limit}, {completed} and {remaining}. For example: {used} out of {limit} slots taken. Unknown tokens stay literal.").font(.caption).foregroundStyle(.secondary)
+                Text("Blank uses your system locale. Examples: EEE, d MMM or yyyy/MM/dd.").font(.caption).foregroundStyle(.secondary)
+                DisclosureGroup("Text format help") {
+                    Text("Use {date}, {used}, {limit}, {completed} or {remaining}. For example: {used} out of {limit} slots taken. Unknown tokens stay literal.").font(.caption).foregroundStyle(.secondary)
+                }
             }
         }.formStyle(.grouped)
     }
@@ -183,13 +212,27 @@ struct PadSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 20).padding(.top, 12)
             }
+            if !model.canEdit {
+                Text("Finish your new-day decision in the pad before saving Settings.")
+                    .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 20).padding(.top, 12)
+            }
             HStack {
+                if model.unsaved {
+                    Button("Retry Save") { model.retrySave() }
+                }
                 Spacer()
-                Button("Cancel") { model.showSettings = false }.keyboardShortcut(.cancelAction)
+                Button(model.unsaved ? "Close" : "Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button("Save") {
-                    if model.applySettings(draft, theme: theme) { model.showSettings = false }
+                    if model.applySettings(draft, theme: theme) { dismiss() }
                 }.keyboardShortcut(.defaultAction).disabled(!model.canEdit || model.unsaved)
             }.padding(16)
+        }
+    }
+    private var carryHelp: String {
+        switch draft.carryMode {
+        case .automatic: return "Carry unfinished tasks and enabled notes. If they won’t fit, choose what carries."
+        case .ask: return "Choose what to carry when a new day begins."
+        case .never: return "Start fresh each day. Repeating tasks still appear when scheduled."
         }
     }
 }
@@ -200,19 +243,22 @@ private struct ChromeForm: View {
     var body: some View {
         Section(title) {
             Toggle("Show \(title.lowercased()) section", isOn: $options.visible)
-            Toggle("Show brand text", isOn: $options.showBrand)
-            TextField("Brand text", text: $options.brand)
-            Toggle("Show heading / motto", isOn: $options.showTitle)
-            TextField("Heading / motto", text: $options.title)
-            Toggle("Show date", isOn: $options.showDate)
-            Toggle("Show slot count", isOn: $options.showCount)
-            TextField("Count format", text: $options.countFormat)
+            Group {
+                Toggle("Show brand text", isOn: $options.showBrand)
+                TextField("Brand text", text: $options.brand).disabled(!options.showBrand)
+                Toggle("Show \(title == "Header" ? "heading" : "motto")", isOn: $options.showTitle)
+                TextField(title == "Header" ? "Heading" : "Motto", text: $options.title).disabled(!options.showTitle)
+                Toggle("Show date", isOn: $options.showDate)
+                Toggle("Show slot count", isOn: $options.showCount)
+                TextField("Count format", text: $options.countFormat).disabled(!options.showCount)
+            }.disabled(!options.visible)
         }
     }
 }
 
 private struct RepeatRuleEditor: View {
     @Binding var rule: RepeatTask
+    let settings: PadSettings
     var remove: () -> Void
     private let days = [(2,"M"),(3,"T"),(4,"W"),(5,"T"),(6,"F"),(7,"S"),(1,"S")]
     var body: some View {
@@ -227,7 +273,17 @@ private struct RepeatRuleEditor: View {
             HStack {
                 Picker("Hour", selection: $rule.hour) { ForEach(0..<24) { Text(String(format: "%02d", $0)).tag($0) } }
                 Picker("Minute", selection: $rule.minute) { ForEach(0..<60) { Text(String(format: "%02d", $0)).tag($0) } }
-                Picker("Priority", selection: $rule.priority) { ForEach(TaskPriority.allCases, id: \.self) { Text(String($0.rawValue)).tag($0) } }
+            }
+            HStack {
+                Picker("Priority", selection: $rule.priority) {
+                    ForEach(TaskPriority.allCases, id: \.self) { Text($0.rawValue == 0 ? "None" : settings.priorityDisplay.label($0)).tag($0) }
+                }
+                Picker("Effort", selection: $rule.effort) {
+                    Text("None").tag(nil as Int?)
+                    ForEach(settings.effortChoices(retaining: rule.effort), id: \.self) {
+                        Text(settings.effortScale.label($0) ?? "").tag(Optional($0))
+                    }
+                }
             }
             Divider()
         }.padding(.vertical, 6)
