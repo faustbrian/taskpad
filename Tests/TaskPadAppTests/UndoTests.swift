@@ -68,7 +68,7 @@ final class UndoTests: XCTestCase {
                 defer { try? FileManager.default.removeItem(at: directory) }
                 let store = try PadStore(directory: directory, today: "2026-10-10")
                 try store.editSheet { $0.tasks[0].text = "A"; $0.tasks[1].text = "B"; $0.notes = "Original notes" }
-                var settings = store.state.settings; settings.notesEnabled = true; try store.applySettings(settings)
+                var settings = store.state.settings; settings.notesEnabled = true; settings.priorityEnabled = true; try store.applySettings(settings)
                 let original = store.state.sheet
                 let model = AppModel(directory: directory, dateProvider: { "2026-10-10" })
                 model.startNotes()

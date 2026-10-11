@@ -149,7 +149,7 @@ final class AppModel: ObservableObject {
     func move(_ id: UUID, offset: Int) { finishEditing(); editSheet("Move Task") { try $0.move(id, offset: offset) }; selectedTask = id }
     func move(_ id: UUID, to destination: UUID) { finishEditing(); editSheet("Move Task") { try $0.move(id, to: destination) }; selectedTask = id }
     func setPriority(_ id: UUID, _ value: TaskPriority) {
-        guard (0...9).contains(value.rawValue) else { return }; finishEditing()
+        guard settings.priorityEnabled, (0...9).contains(value.rawValue) else { return }; finishEditing()
         editSheet("Change Priority") { sheet in
             guard let index = sheet.tasks.firstIndex(where: { $0.id == id }) else { return }; sheet.tasks[index].priority = value
         }
@@ -160,7 +160,7 @@ final class AppModel: ObservableObject {
         }
     }
     func setEffort(_ id: UUID, _ value: Int?) {
-        guard canEdit, let task = state?.sheet.tasks.first(where: { $0.id == id }) else { return }
+        guard canEdit, settings.effortEnabled, let task = state?.sheet.tasks.first(where: { $0.id == id }) else { return }
         if let value, !settings.effortChoices(retaining: task.effort).contains(value) { return }
         finishEditing()
         editSheet("Change Effort") { sheet in

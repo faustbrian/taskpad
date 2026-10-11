@@ -4,6 +4,8 @@ import TaskPadCore
 
 struct PadView: View {
     @ObservedObject var model: AppModel
+    @Environment(\.colorScheme) private var colorScheme
+    private var palette: ThemePalette { model.theme.palette(for: model.settings.appearance.resolved(in: colorScheme)) }
     @State private var dragging: UUID?
     @State private var dropTarget: UUID?
     @State private var slotFrames: [UUID: CGRect] = [:]
@@ -18,13 +20,13 @@ struct PadView: View {
                         Spacer(minLength: 0)
                         if model.unsaved { Button("Retry") { model.retrySave() } }
                         else { Button("Dismiss") { model.message = nil } }
-                    }.padding(12).background(Color(red: 0.99, green: 0.93, blue: 0.82))
+                    }.padding(12).background(palette.warning)
                 }
                 if state.draft != nil && !model.showRollover {
                     HStack {
                         Text("Your new-day decision is waiting.").font(.system(size: 12))
                         Spacer(); Button("Continue") { model.showRollover = true }
-                    }.padding(12).background(model.theme.rule)
+                    }.padding(12).background(palette.rule)
                 }
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -37,7 +39,7 @@ struct PadView: View {
                                             Color.clear.preference(key: SlotFrames.self, value: [task.id: geometry.frame(in: .named("sheet"))])
                                         }
                                     }
-                                    .overlay { if dropTarget == task.id && dragging != task.id { Rectangle().stroke(model.theme.accent.opacity(0.65), lineWidth: 2).allowsHitTesting(false) } }
+                                    .overlay { if dropTarget == task.id && dragging != task.id { Rectangle().stroke(palette.accent.opacity(0.65), lineWidth: 2).allowsHitTesting(false) } }
                                     .simultaneousGesture(DragGesture(minimumDistance: 8, coordinateSpace: .named("sheet"))
                                         .onChanged { value in
                                             guard model.canEdit, model.editingTask == nil else { return }
@@ -55,7 +57,7 @@ struct PadView: View {
                         .onPreferenceChange(SlotFrames.self) { slotFrames = $0 }
                         .background(alignment: .leading) {
                             if model.theme == .anoto {
-                                Rectangle().fill(Color(red: 0.73, green: 0.32, blue: 0.30).opacity(0.48))
+                                Rectangle().fill(palette.margin)
                                     .frame(width: 1).padding(.leading, model.theme.margin)
                             }
                         }
@@ -71,7 +73,7 @@ struct PadView: View {
                 }.padding(28).frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .foregroundStyle(model.theme.ink).background(model.theme.paper).preferredColorScheme(.light)
+        .foregroundStyle(palette.ink).background(palette.paper).preferredColorScheme(model.settings.appearance.colorScheme)
         .background {
             GeometryReader { geometry in
                 Color.clear.onAppear { model.sheetWidth = geometry.size.width }
@@ -103,9 +105,9 @@ struct PadView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 24).padding(.vertical, header ? 20 : 10)
-        .foregroundStyle(dark ? Color.white : model.theme.ink)
-        .background(dark ? Color(red: 0.09, green: 0.10, blue: 0.11) : model.theme.paper)
-        .overlay(alignment: header ? .bottom : .top) { Rectangle().fill(model.theme.rule).frame(height: 1) }
+        .foregroundStyle(dark ? palette.headerInk : palette.ink)
+        .background(dark ? palette.headerPaper : palette.paper)
+        .overlay(alignment: header ? .bottom : .top) { Rectangle().fill(palette.rule).frame(height: 1) }
     }
     private func notes(_ text: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -114,7 +116,7 @@ struct PadView: View {
                 Spacer(); Button(model.editingNotes ? "Done" : "Edit") { if model.editingNotes { model.finishEditing() } else { model.startNotes() } }.font(.system(size: 11))
             }
             if model.editingNotes {
-                NativeEditor(text: text, label: "Daily notes", font: model.settings.nativeFont, ink: model.theme.nativeInk,
+                NativeEditor(text: text, label: "Daily notes", font: model.settings.nativeFont, ink: palette.nativeInk,
                              rowHeight: model.settings.rowHeight, bounded: false, change: { model.changeNotes($0) }, finish: { model.finishEditing() })
                     .frame(minHeight: model.settings.rowHeight * 2)
             } else {
@@ -134,6 +136,8 @@ struct TaskRow: View {
     @State private var width: CGFloat = 280
     let typingInput: RowTypingInput
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.colorScheme) private var colorScheme
+    private var palette: ThemePalette { model.theme.palette(for: model.settings.appearance.resolved(in: colorScheme)) }
     private var selected: Bool { model.selectedTask == task.id }
     private var editing: Bool { model.editingTask == task.id }
     private var lineCount: Int {
@@ -152,7 +156,7 @@ struct TaskRow: View {
                 Group {
                     if editing {
                         NativeEditor(text: task.text, label: "Edit slot \(number)", font: model.settings.nativeFont,
-                                     ink: model.theme.nativeInk, rowHeight: model.settings.rowHeight, availableWidth: textWidth,
+                                     ink: palette.nativeTaskInk(task.color), rowHeight: model.settings.rowHeight, availableWidth: textWidth,
                                      change: { model.changeText(task.id, text: $0) }, finish: { model.finishEditing() },
                                      navigate: {
                                          model.navigate($0, editing: true)
@@ -161,7 +165,7 @@ struct TaskRow: View {
                                      initialInput: typingInput)
                     } else {
                         Text(inlineMarkdown(task.text.isEmpty ? " " : task.text))
-                            .font(model.settings.font).foregroundStyle(task.color?.ink ?? model.theme.ink)
+                            .font(model.settings.font).foregroundStyle(Color(nsColor: palette.nativeTaskInk(task.color)))
                             .strikethrough(task.isComplete)
                             .lineLimit(lineCount).truncationMode(.tail)
                             .lineSpacing(max(0, model.settings.rowHeight - TaskTypography.lineHeight(for: model.settings.nativeFont)))
@@ -175,19 +179,19 @@ struct TaskRow: View {
                     VStack(spacing: 2) {
                         Image(systemName: "pin.fill").font(.system(size: model.settings.metadataFontSize - 2)).accessibilityHidden(true)
                         Text(time).font(.system(size: model.settings.metadataFontSize)).monospacedDigit()
-                    }.foregroundStyle(model.theme.accent).frame(width: model.settings.scheduledBadgeWidth, height: model.settings.rowHeight)
+                    }.foregroundStyle(palette.accent).frame(width: model.settings.scheduledBadgeWidth, height: model.settings.rowHeight)
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel("Repeating task scheduled at \(time)")
                 }
-                if task.priority.rawValue > 0 {
-                    Text(model.settings.priorityDisplay.label(task.priority)).font(.system(size: model.settings.metadataFontSize, weight: .semibold)).foregroundStyle(model.theme.accent)
+                if model.settings.priorityEnabled && task.priority.rawValue > 0 {
+                    Text(model.settings.priorityDisplay.label(task.priority)).font(.system(size: model.settings.metadataFontSize, weight: .semibold)).foregroundStyle(palette.accent)
                         .frame(width: model.settings.priorityBadgeWidth(task.priority), height: model.settings.rowHeight)
                         .help("Priority \(task.priority.rawValue)").accessibilityLabel("Priority \(task.priority.rawValue)")
                 }
-                if let effort = task.effort, let label = model.settings.effortScale.label(effort) {
+                if model.settings.effortEnabled, let effort = task.effort, let label = model.settings.effortScale.label(effort) {
                     Text(label).font(.system(size: model.settings.metadataFontSize - 1, weight: .medium)).monospacedDigit()
                         .padding(.horizontal, 6).padding(.vertical, 3)
-                        .background(model.theme.ink.opacity(0.06), in: Capsule())
+                        .background(palette.ink.opacity(0.06), in: Capsule())
                         .frame(width: model.settings.effortBadgeWidth(effort), height: model.settings.rowHeight)
                         .help("Effort: \(label)").accessibilityLabel("Effort: \(label)")
                 }
@@ -198,8 +202,8 @@ struct TaskRow: View {
             .gesture(TapGesture(count: 2).onEnded { model.doubleClick(task.id) }, including: editing ? .none : .all)
         }
         .frame(height: model.settings.rowHeight * CGFloat(lineCount), alignment: .top)
-        .background(task.scheduleID != nil ? model.theme.accent.opacity(0.045) : Color.clear)
-        .background(selected ? model.theme.accent.opacity(contrast == .increased ? 0.14 : 0.08) : Color.clear)
+        .background(task.scheduleID != nil ? palette.accent.opacity(0.045) : Color.clear)
+        .background(selected ? palette.accent.opacity(contrast == .increased ? 0.14 : 0.08) : Color.clear)
         .background {
             RowKeyboard(active: selected && !editing && !model.editingNotes && model.canEdit,
                         actions: {
@@ -213,8 +217,8 @@ struct TaskRow: View {
         .background {
             GeometryReader { geometry in Color.clear.onAppear { width = geometry.size.width }.onChange(of: geometry.size.width) { _, value in width = value } }
         }
-        .overlay(alignment: .bottom) { Rectangle().fill(model.theme.rule).frame(height: 1) }
-        .overlay(alignment: .leading) { if selected { Rectangle().fill(model.theme.accent.opacity(contrast == .increased ? 1 : 0.85)).frame(width: 3) } }
+        .overlay(alignment: .bottom) { Rectangle().fill(palette.rule).frame(height: 1) }
+        .overlay(alignment: .leading) { if selected { Rectangle().fill(palette.accent.opacity(contrast == .increased ? 1 : 0.85)).frame(width: 3) } }
         .contentShape(Rectangle()).simultaneousGesture(TapGesture().onEnded { model.select(task.id) })
         .contextMenu {
             ForEach(slotActions(task, model: model)) { action in
@@ -232,10 +236,10 @@ struct TaskRow: View {
         ZStack {
             if model.theme == .karst {
                 Circle().fill(task.isComplete ? Color.black : Color.clear)
-                Circle().strokeBorder(model.theme.ink.opacity(task.isComplete || contrast == .increased ? 1 : 0.55), lineWidth: contrast == .increased ? 2 : 1)
+                Circle().strokeBorder(palette.ink.opacity(task.isComplete || contrast == .increased ? 1 : 0.55), lineWidth: contrast == .increased ? 2 : 1)
             } else {
-                RoundedRectangle(cornerRadius: model.theme == .anoto ? 1 : 4).strokeBorder(task.isComplete ? model.theme.accent : model.theme.ink.opacity(contrast == .increased ? 1 : 0.55), lineWidth: contrast == .increased ? 2 : 1)
-                if task.isComplete { Image(systemName: "checkmark").font(.system(size: 11, weight: .semibold)).foregroundStyle(model.theme.accent) }
+                RoundedRectangle(cornerRadius: model.theme == .anoto ? 1 : 4).strokeBorder(task.isComplete ? palette.accent : palette.ink.opacity(contrast == .increased ? 1 : 0.55), lineWidth: contrast == .increased ? 2 : 1)
+                if task.isComplete { Image(systemName: "checkmark").font(.system(size: 11, weight: .semibold)).foregroundStyle(palette.accent) }
             }
         }.frame(width: 17, height: 17)
     }
@@ -250,7 +254,7 @@ struct TaskRow: View {
         case 36, 76: model.startEditing(id)
         case 51, 117: model.delete(id)
         default:
-            guard text.count == 1, let value = Int(text), (0...9).contains(value) else { return false }
+            guard model.settings.priorityEnabled, text.count == 1, let value = Int(text), (0...9).contains(value) else { return false }
             model.setPriority(id, TaskPriority(rawValue: value))
         }
         return true
@@ -304,6 +308,6 @@ struct RolloverView: View {
                 Button("Not yet") { model.showRollover = false }.keyboardShortcut(.cancelAction)
                 Button("Start today") { model.confirmRollover() }.keyboardShortcut(.defaultAction).disabled(model.unsaved)
             }
-        }.padding(28).frame(width: 440).preferredColorScheme(.light)
+        }.padding(28).frame(width: 440).preferredColorScheme(model.settings.appearance.colorScheme)
     }
 }

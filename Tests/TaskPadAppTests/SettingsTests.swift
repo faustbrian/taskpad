@@ -24,6 +24,8 @@ final class SettingsTests: XCTestCase {
             let root = FileManager.default.temporaryDirectory.appendingPathComponent("TaskPad-settings-\(UUID())")
             defer { try? FileManager.default.removeItem(at: root) }
             let model = AppModel(directory: root, dateProvider: { "2026-10-12" })
+            var enabled = model.settings; enabled.effortEnabled = true
+            XCTAssertTrue(model.applySettings(enabled))
             let id = model.state!.sheet.tasks[0].id
             model.beginSettings()
             var draft = model.settings
@@ -56,6 +58,8 @@ final class SettingsTests: XCTestCase {
             let root = FileManager.default.temporaryDirectory.appendingPathComponent("TaskPad-settings-\(UUID())")
             defer { try? FileManager.default.removeItem(at: root) }
             let model = AppModel(directory: root, dateProvider: { "2026-10-12" })
+            var enabled = model.settings; enabled.effortEnabled = true
+            XCTAssertTrue(model.applySettings(enabled))
             model.setEffort(model.selectedTask!, 5)
             let before = model.state!
             let active = root.appendingPathComponent("active.json")
@@ -69,6 +73,7 @@ final class SettingsTests: XCTestCase {
             selected.windowTitle = "My fixed sheet"; selected.slotLimit = 20; selected.fontSize = 18
             selected.doubleClickAction = .toggle; selected.priorityDisplay = .marks
             selected.effortScale = .tshirt; selected.extendedEffort = true
+            selected.priorityEnabled = true; selected.effortEnabled = false; selected.appearance = .dark
             let backup = root.appendingPathComponent("before-failure.json")
             try FileManager.default.moveItem(at: active, to: backup)
             try FileManager.default.createDirectory(at: active, withIntermediateDirectories: false)

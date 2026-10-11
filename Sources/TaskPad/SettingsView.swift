@@ -42,7 +42,7 @@ private enum SettingsPage: String, CaseIterable, Identifiable {
     }
 }
 
-// Paper themes stay light; the settings presentation follows macOS independently.
+// Native Settings follows the saved app mode; System stays live with macOS.
 private final class SettingsAppearance: ObservableObject {
     @Published var colorScheme: ColorScheme
     private var observation: NSKeyValueObservation?
@@ -85,7 +85,7 @@ struct PadSettingsView: View {
         }
         .frame(minWidth: 640, minHeight: 480)
         .font(.system(size: 13)).foregroundStyle(.primary)
-        .preferredColorScheme(appearance.colorScheme)
+        .preferredColorScheme(model.settings.appearance.colorScheme ?? appearance.colorScheme)
         .background(SettingsWindowSetup(
             opened: { model.settingsIsKey = true; model.beginSettings() },
             resigned: { model.settingsIsKey = false },
@@ -152,6 +152,9 @@ struct PadSettingsView: View {
         case .appearance:
                 Form {
                     Section("Paper") {
+                        Picker("Appearance", selection: $draft.appearance) {
+                            ForEach(PadAppearance.allCases, id: \.self) { Text($0.title).tag($0) }
+                        }.pickerStyle(.segmented)
                         Picker("Theme", selection: $theme) { ForEach(PadTheme.allCases, id: \.self) { Text($0.title).tag($0) } }
                     }
                     Section("Typography") {
@@ -164,16 +167,24 @@ struct PadSettingsView: View {
                         Text("The quick brown fox · 07:30").font(draft.font).padding(.vertical, 8)
                     }
                     Section("Task badges") {
-                        Picker("Priority display", selection: $draft.priorityDisplay) {
-                            ForEach(PriorityDisplay.allCases, id: \.self) { Text($0.title).tag($0) }
+                        Toggle("Enable priority", isOn: $draft.priorityEnabled)
+                        if draft.priorityEnabled {
+                            Picker("Priority display", selection: $draft.priorityDisplay) {
+                                ForEach(PriorityDisplay.allCases, id: \.self) { Text($0.title).tag($0) }
+                            }
                         }
-                        Picker("Effort scale", selection: $draft.effortScale) {
-                            ForEach(EffortScale.allCases, id: \.self) { Text($0.title).tag($0) }
+                        Toggle("Enable effort", isOn: $draft.effortEnabled)
+                        if draft.effortEnabled {
+                            Picker("Effort scale", selection: $draft.effortScale) {
+                                ForEach(EffortScale.allCases, id: \.self) { Text($0.title).tag($0) }
+                            }
+                            Toggle("Extended effort scale", isOn: $draft.extendedEffort)
+                            Text(draft.effortChoices().compactMap { draft.effortScale.label($0) }.joined(separator: " · "))
+                                .font(.caption).foregroundStyle(.secondary)
+                            Text("Scale changes keep relative size; hiding extended values keeps existing estimates.")
+                                .font(.caption).foregroundStyle(.secondary)
                         }
-                        Toggle("Extended effort scale", isOn: $draft.extendedEffort)
-                        Text(draft.effortChoices().compactMap { draft.effortScale.label($0) }.joined(separator: " · "))
-                            .font(.caption).foregroundStyle(.secondary)
-                        Text("Effort is optional. Scale changes keep relative size; hiding extended values keeps existing estimates.")
+                        Text("Turning a feature off hides its badges and controls, without erasing saved values.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }.formStyle(.grouped)
@@ -275,13 +286,17 @@ private struct RepeatRuleEditor: View {
                 Picker("Minute", selection: $rule.minute) { ForEach(0..<60) { Text(String(format: "%02d", $0)).tag($0) } }
             }
             HStack {
-                Picker("Priority", selection: $rule.priority) {
-                    ForEach(TaskPriority.allCases, id: \.self) { Text($0.rawValue == 0 ? "None" : settings.priorityDisplay.label($0)).tag($0) }
+                if settings.priorityEnabled {
+                    Picker("Priority", selection: $rule.priority) {
+                        ForEach(TaskPriority.allCases, id: \.self) { Text($0.rawValue == 0 ? "None" : settings.priorityDisplay.label($0)).tag($0) }
+                    }
                 }
-                Picker("Effort", selection: $rule.effort) {
-                    Text("None").tag(nil as Int?)
-                    ForEach(settings.effortChoices(retaining: rule.effort), id: \.self) {
-                        Text(settings.effortScale.label($0) ?? "").tag(Optional($0))
+                if settings.effortEnabled {
+                    Picker("Effort", selection: $rule.effort) {
+                        Text("None").tag(nil as Int?)
+                        ForEach(settings.effortChoices(retaining: rule.effort), id: \.self) {
+                            Text(settings.effortScale.label($0) ?? "").tag(Optional($0))
+                        }
                     }
                 }
             }

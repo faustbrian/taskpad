@@ -1,6 +1,6 @@
 import Foundation
 
-public enum PadTheme: String, Codable, CaseIterable { case karst, anoto, things, todoist, ticktick }
+public enum PadTheme: String, Codable, CaseIterable { case karst, anoto, things, todoist, ticktick, linear, raycast }
 public enum CarryMode: String, Codable, CaseIterable { case automatic = "auto", ask, never }
 public enum TaskColor: String, Codable, CaseIterable { case red, orange, green, blue, purple }
 
@@ -66,6 +66,9 @@ public struct PadSettings: Codable, Equatable {
     public var dateFormat = ""
     public var windowTitle = "TaskPad"
     public var doubleClickAction: DoubleClickAction = .edit
+    public var appearance: PadAppearance = .system
+    public var priorityEnabled = false
+    public var effortEnabled = false
     public var priorityDisplay: PriorityDisplay = .numbers
     public var effortScale: EffortScale = .fibonacci
     public var extendedEffort = false
@@ -77,7 +80,7 @@ public struct PadSettings: Codable, Equatable {
     }()
     public var schedules: [RepeatTask] = []
     public init() {}
-    private enum CodingKeys: String, CodingKey { case slotLimit, carryMode, notesEnabled, fontName, fontSize, dateFormat, windowTitle, doubleClickAction, priorityDisplay, effortScale, extendedEffort, header, footer, schedules }
+    private enum CodingKeys: String, CodingKey { case slotLimit, carryMode, notesEnabled, fontName, fontSize, dateFormat, windowTitle, doubleClickAction, appearance, priorityEnabled, effortEnabled, priorityDisplay, effortScale, extendedEffort, header, footer, schedules }
     public init(from decoder: Decoder) throws {
         self.init(); let c = try decoder.container(keyedBy: CodingKeys.self)
         slotLimit = try c.decodeIfPresent(Int.self, forKey: .slotLimit) ?? slotLimit
@@ -88,6 +91,9 @@ public struct PadSettings: Codable, Equatable {
         dateFormat = try c.decodeIfPresent(String.self, forKey: .dateFormat) ?? dateFormat
         windowTitle = try c.decodeIfPresent(String.self, forKey: .windowTitle) ?? windowTitle
         doubleClickAction = try c.decodeIfPresent(DoubleClickAction.self, forKey: .doubleClickAction) ?? doubleClickAction
+        appearance = try c.decodeIfPresent(PadAppearance.self, forKey: .appearance) ?? appearance
+        priorityEnabled = try c.decodeIfPresent(Bool.self, forKey: .priorityEnabled) ?? priorityEnabled
+        effortEnabled = try c.decodeIfPresent(Bool.self, forKey: .effortEnabled) ?? effortEnabled
         priorityDisplay = try c.decodeIfPresent(PriorityDisplay.self, forKey: .priorityDisplay) ?? priorityDisplay
         effortScale = try c.decodeIfPresent(EffortScale.self, forKey: .effortScale) ?? effortScale
         extendedEffort = try c.decodeIfPresent(Bool.self, forKey: .extendedEffort) ?? extendedEffort

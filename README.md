@@ -39,14 +39,17 @@ hidden by default. Hiding them does not erase their text.
 
 Inline Markdown supports **bold**, *italic*, ~~strikethrough~~, `code` and links.
 Editing shows source; resting rows render it. Open a rendered link by clicking
-it. Right-click a row for flat, top-level priority, ink and optional effort choices. Priority
+it. Priority and effort are independently optional, both off by default. Enable
+them in Appearance to reveal their badges, flat menu choices and repeating-rule
+controls. Turning them off preserves saved values and gives the text its space
+back. Right-click a row for ink and any enabled metadata choices. Priority
 0 means none; 9 is highest. Display priorities as numbers or repeated `!` marks
 without changing their levels. No action icons occupy the rows.
 
 | Action | Keyboard |
 | --- | --- |
 | Focus next / previous slot, wrapping | Tab / ⇧Tab or ↓ / ↑ |
-| Start editing at the end of the focused slot | Type a letter or punctuation |
+| Start editing at the end of the focused slot | Type text (digits too when priority is off) |
 | Edit focused slot / finish editing | Return |
 | Finish editing | Escape |
 | Insert newline | ⇧Return |
@@ -54,7 +57,7 @@ without changing their levels. No action icons occupy the rows.
 | Toggle done / pending; advance only when becoming done, without wrapping | Space |
 | Toggle done / pending without moving | ← |
 | Open focused row's context menu | → |
-| Set focused row priority | 0–9 |
+| Set focused row priority (when enabled) | 0–9 |
 | Clear focused slot | Delete or ⌘Delete |
 | Reorder selected slot | Drag and drop, or ⌘⌥↑ / ⌘⌥↓ |
 | Undo / redo | ⌘Z / ⌘⇧Z |
@@ -69,7 +72,8 @@ together; it does not sort by priority or completion.
 ## Settings and paper
 
 Settings opens in its own resizable window with a System Settings-style sidebar
-and grouped panes. Its native light/dark appearance is independent of the paper.
+and grouped panes. Choose System (default), Light or Dark for the whole app,
+including Settings and the new-day sheet. System follows macOS automatically.
 Changes remain a draft across categories until Save; Cancel or closing the
 window discards that draft. Reopening starts from the current saved settings.
 You can still use the pad while Settings is open; its task shortcuts do not
@@ -77,7 +81,8 @@ intercept text entry in Settings. Settings and theme save as one recoverable
 change, with Retry Save available in the window after a failed save. Submitted
 unsaved changes are retained for recovery, not discarded by closing Settings.
 
-Karst is the default. The other themes are Anoto, Things, Todoist and TickTick:
+Karst is the default. The other themes are Anoto, Things, Todoist, TickTick,
+Linear and Raycast. Each has a coordinated light and dark palette:
 aesthetic alternatives with identical functions, no commercial logos and no
 animations. Karst uses solid black completed circles; Anoto uses blue checked
 squares, ivory paper and a red margin with a clear text gutter.
@@ -101,8 +106,10 @@ as used; blank/whitespace slots do not. Theme and window geometry persist.
 
 ## Optional effort
 
-Effort is unset by default and never creates extra slots or a separate workflow.
-Choose its scale in Appearance; assign or clear it from the row context menu.
+Effort is disabled by default and never creates extra slots or a separate workflow.
+Enable it and choose its scale in Appearance; assign or clear it from the row
+context menu. Disabling it hides all effort controls and badges without erasing
+estimates from tasks or repeating rules.
 Fibonacci is the default, with five values; extended scales add two more.
 
 | Scale | Values | Extended values |

@@ -10,7 +10,7 @@ final class InteractionTests: XCTestCase {
             let root = FileManager.default.temporaryDirectory.appendingPathComponent("TaskPad-interaction-\(UUID())")
             defer { try? FileManager.default.removeItem(at: root) }
             let model = AppModel(directory: root, dateProvider: { "2026-10-12" })
-            var settings = model.settings; settings.slotLimit = 3; XCTAssertTrue(model.applySettings(settings))
+            var settings = model.settings; settings.slotLimit = 3; settings.priorityEnabled = true; XCTAssertTrue(model.applySettings(settings))
             let ids = model.state!.sheet.tasks.map(\.id)
             model.select(ids[0]); model.navigate(-1); XCTAssertEqual(model.selectedTask, ids[2])
             model.navigate(1, editing: true); XCTAssertEqual(model.editingTask, ids[0])

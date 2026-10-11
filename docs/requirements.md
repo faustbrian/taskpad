@@ -15,7 +15,7 @@ The original “Notepad” theme is now **Anoto**; no legacy migration is includ
 | Configurable double-click | Edit by default; optionally toggle exactly once without advancing. Native checks cover text, blank slots and passive badges in both modes. A blank-hit failure was reproduced and fixed by giving the non-checkbox resting surface a rectangular target. Native editor double-click still selects words; checkbox double-click remains two ordinary clicks. Save/Cancel retains/discards the preference. |
 | Configurable priority presentation | Numbers by default, or exactly N exclamation marks for levels 1–9; zero has no badge. All ten literal labels pass core assertions, raw levels persist unchanged, and native marks/context choices were inspected. |
 | Optional effort and extended scales | Exponential, Fibonacci, Linear and T-Shirt match all seven literal requested labels and numeric equivalents. Fibonacci/default extension off; estimates unset. Shared flat menu and repeating-rule editor support assign/clear and retained extended values. Scale changes preserve relative size; extension off restricts new assignments without erasing existing values. Real store tests cover reorder, durable reopen, archive, selected manual carry and fresh scheduled defaults; model tests cover Undo/Redo and invalid assignments. |
-| Priority and ink are top-level quick actions; no row menu icons | Native context menu exposes all ten priorities and ink choices directly. Rows have no three-dot button or down chevron. Right-click and Right use the same menu. |
+| Priority and ink are top-level quick actions; no row menu icons | When priority is enabled, native context menus expose all ten levels directly; ink choices always remain available. Rows have no three-dot button or down chevron. Right-click and Right use the same menu. |
 | Drag and drop | Native drag moved a completed, blue, priority-9 scheduled task from slot 1 to 4. Its complete JSON row and every identity were preserved, with 20 total slots. Native Undo restored the exact full state. Core reorder and app undo tests cover these contracts. |
 | Markdown and bounded multiline content | Inline Markdown renders at rest; native Anoto/Karst checks showed bold and completion styling. Resting rows truncate to one line; focus expands in whole ruled-line increments, capped at five, without changing top inset. New input is limited to five visual lines and 500 characters. InteractionTests exercises real native text measurement, five/six lines, wrapped paste and replacement bounds. Existing text is preserved when font or window width changes. |
 
@@ -23,7 +23,7 @@ The original “Notepad” theme is now **Anoto**; no legacy migration is includ
 
 | Requirement | Result and evidence |
 | --- | --- |
-| Karst default; Anoto, Things, Todoist, TickTick | All five choices are present and persist. Theme load tests cover each. Native theme screenshots are linked below; the current native sweep rechecked Karst and Anoto. These are visual themes, not integrations with those products. |
+| Karst default; Anoto, Things, Todoist, TickTick, Linear, Raycast | All seven choices are present and persist, in light and dark. Theme load tests cover each. Native theme screenshots are linked below; the current native sweep rechecked Karst and Anoto. These are visual themes, not integrations with those products. |
 | Karst solid black completed circle | Native completed row showed a solid black circle with no tick. |
 | Anoto blue check, clear red-margin gutter | Native completed row showed a blue checked square. The red margin is at x=52 and text begins at x=68, leaving 16 points of clearance. |
 | Consistent typography, spacing and focused padding | Shared font/layout metrics govern every theme. Native 18-point Maple Mono NF checks showed 41-point ruled rows and unchanged first-line position when a two-line task received focus. Only the row's height expands. |
@@ -45,7 +45,7 @@ The original “Notepad” theme is now **Anoto**; no legacy migration is includ
 
 ## Verification and boundaries
 
-- `./scripts/test.sh`: 50 tests passed (22 core, 28 app).
+- `./scripts/test.sh`: 58 tests passed (23 core, 35 app).
 - `./scripts/build.sh`: release bundle built and ad-hoc signed for this Mac.
 - Native checks used isolated disposable storage, not the user's task data.
 - Settings is an independent, resizable native window with draft Save/Cancel;
@@ -116,6 +116,68 @@ New captures: [Karst 32](screenshots/controls-karst-32.png),
 [Things](screenshots/controls-things-16.png),
 [Todoist](screenshots/controls-todoist-16.png),
 [TickTick](screenshots/controls-ticktick-16.png).
+
+## Optional metadata and app appearance
+
+Priority and effort are independent features, both **off by default**. Off hides
+badges, row menu groups and repeating-rule assignment controls, and removes the
+reserved badge width. Priority off also releases 0–9 for ordinary type-to-edit.
+Saved task/rule values are retained, including extended estimates; re-enabling
+restores them. Store/feature tests exercise all four switch combinations and
+preservation of edited scheduled occurrences. Native Save preserved the complete
+sheet and repeating metadata; Cancel preserved the exact durable state.
+
+**System** is the appearance default; explicit **Light** and **Dark** override it
+for the pad, native editors, Settings, rollover and the unsaved-quit warning. Hosted rendering tests cover
+every theme under both host schemes and all three choices; a live provider
+transition updates an already-hosted System pad without changing its state.
+Native checks used the current dark macOS appearance and an explicit Light
+fixture, without changing the user's system preferences. A physical macOS
+appearance switch was not performed; live provider propagation is covered by
+the hosted test and the existing Settings appearance observation. The actual
+termination callback is tested under both host appearances and all three modes,
+with real blocked storage; Keep Open preserves the unsaved candidate and last-good
+bytes. Native opposite-mode verification confirms the Light quit alert on dark
+macOS, and Retry Save exits successfully after storage is repaired.
+
+All fourteen theme/scheme pairs were visually inspected with the same pending,
+completed, colored, scheduled and metadata-populated sheet, plus notes and
+footer. Linear uses a restrained purple accent; Raycast uses warm red, with no
+logos or integrations. Karst retains a black completed circle, outlined for
+visibility on dark paper; Anoto retains blue checks and its 16-point margin
+gutter. Concrete ink colors are shared with the native editor/caret. Contrast
+checks require at least 4.5:1 for text and badges on selected/scheduled rows,
+including increased selection contrast and every custom ink color. Dark native
+rest/editor captures have identical first-glyph rows (y=250–263).
+
+Native Settings checks show saved appearance, both feature switches, hidden
+rule controls, all seven theme choices, draft Cancel, and pinned actions at
+640×480 content. Full-width and narrow/large-font checks preserve the ruled
+layout and native editor. VoiceOver-specific checks remain out of scope.
+
+| Theme | Light | Dark |
+| --- | --- | --- |
+| Karst | [Light](screenshots/appearance-karst-light.jpg) | [Dark](screenshots/appearance-karst-dark.jpg) |
+| Anoto | [Light](screenshots/appearance-anoto-light.jpg) | [Dark](screenshots/appearance-anoto-dark.jpg) |
+| Things | [Light](screenshots/appearance-things-light.jpg) | [Dark](screenshots/appearance-things-dark.jpg) |
+| Todoist | [Light](screenshots/appearance-todoist-light.jpg) | [Dark](screenshots/appearance-todoist-dark.jpg) |
+| TickTick | [Light](screenshots/appearance-ticktick-light.jpg) | [Dark](screenshots/appearance-ticktick-dark.jpg) |
+| Linear | [Light](screenshots/appearance-linear-light.jpg) | [Dark](screenshots/appearance-linear-dark.jpg) |
+| Raycast | [Light](screenshots/appearance-raycast-light.jpg) | [Dark](screenshots/appearance-raycast-dark.jpg) |
+
+Additional captures: [metadata off](screenshots/appearance-metadata-off.jpg),
+[dark Settings](screenshots/appearance-settings-dark.jpg),
+[light Settings](screenshots/appearance-settings-light.jpg),
+[compact Settings](screenshots/appearance-settings-compact-dark.jpg),
+[hidden repeating metadata](screenshots/appearance-repeating-off.jpg),
+[dark rest](screenshots/appearance-dark-rest.jpg),
+[dark editor](screenshots/appearance-dark-edit.jpg),
+[dark notes](screenshots/appearance-dark-notes.jpg),
+[narrow 32-point Anoto](screenshots/appearance-anoto-compact-32.jpg),
+[its native editor](screenshots/appearance-anoto-compact-32-edit.jpg),
+[dark rollover](screenshots/appearance-rollover-dark.jpg),
+[light rollover](screenshots/appearance-rollover-light.jpg),
+[light unsaved-quit warning](screenshots/appearance-unsaved-quit-light.jpg).
 
 ## Screenshots
 

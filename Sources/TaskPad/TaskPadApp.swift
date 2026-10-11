@@ -50,6 +50,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let model, model.unsaved else { return .terminateNow }
         let alert = NSAlert()
+        switch model.settings.appearance {
+        case .system: alert.window.appearance = nil
+        case .light: alert.window.appearance = NSAppearance(named: .aqua)
+        case .dark: alert.window.appearance = NSAppearance(named: .darkAqua)
+        }
         alert.messageText = "Your latest changes haven’t been saved"
         alert.informativeText = "Keep the pad open to retry saving, or explicitly quit without these changes. The last saved sheet is still on disk."
         alert.addButton(withTitle: "Keep Open")

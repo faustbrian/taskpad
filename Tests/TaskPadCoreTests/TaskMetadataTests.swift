@@ -82,7 +82,7 @@ final class TaskMetadataTests: XCTestCase {
         let store = try PadStore(directory: root, today: "2026-10-12")
         var document = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(store.state)) as? [String: Any])
         var settings = document["settings"] as! [String: Any]
-        for key in ["doubleClickAction", "priorityDisplay", "effortScale", "extendedEffort"] { settings.removeValue(forKey: key) }
+        for key in ["doubleClickAction", "priorityDisplay", "effortScale", "extendedEffort", "appearance", "priorityEnabled", "effortEnabled"] { settings.removeValue(forKey: key) }
         document["settings"] = settings
         try JSONSerialization.data(withJSONObject: document).write(to: root.appendingPathComponent("active.json"))
         let defaults = try PadStore(directory: root, today: "2026-10-12").state
@@ -90,6 +90,9 @@ final class TaskMetadataTests: XCTestCase {
         XCTAssertEqual(defaults.settings.priorityDisplay, .numbers)
         XCTAssertEqual(defaults.settings.effortScale, .fibonacci)
         XCTAssertFalse(defaults.settings.extendedEffort)
+        XCTAssertFalse(defaults.settings.priorityEnabled)
+        XCTAssertFalse(defaults.settings.effortEnabled)
+        XCTAssertEqual(defaults.settings.appearance, .system)
         XCTAssertNil(defaults.sheet.tasks[0].effort)
         XCTAssertEqual(defaults.sheet, store.state.sheet)
         settings["doubleClickAction"] = "toggle"

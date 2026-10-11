@@ -5,6 +5,17 @@ import TaskPadCore
 @testable import TaskPad
 
 final class RowTypingTests: XCTestCase {
+    @MainActor func testDigitsStartTypingWhenPriorityIsDisabled() async throws {
+        let fixture = try Fixture(priorityEnabled: false)
+        defer { fixture.close() }
+        let row = try await fixture.focusedRow()
+        row.keyDown(with: fixture.event("9", code: 25))
+        XCTAssertEqual(fixture.model.state!.sheet.tasks[0].priority.rawValue, 0, "Disabled priority must not swallow a typed digit")
+        try await fixture.wait { fixture.model.state!.sheet.tasks[0].text == "9" }
+        XCTAssertEqual(fixture.model.state!.sheet.tasks[0].priority.rawValue, 0)
+        fixture.model.finishEditing()
+        XCTAssertEqual(try PadStore(directory: fixture.root, today: "2026-10-12").state, fixture.model.state)
+    }
     @MainActor func testRapidSpaceThenTypingTargetsNewlySelectedSlot() async throws {
         let fixture = try Fixture()
         defer { fixture.close() }
@@ -251,12 +262,13 @@ final class RowTypingTests: XCTestCase {
         let root: URL
         let model: AppModel
         let window: NSWindow
-        init(fontName: String = "System", fontSize: Double = 16, width: Double = 420, slots: Int = 3) throws {
+        init(fontName: String = "System", fontSize: Double = 16, width: Double = 420, slots: Int = 3, priorityEnabled: Bool = true) throws {
             _ = NSApplication.shared
             root = FileManager.default.temporaryDirectory.appendingPathComponent("TaskPad-row-typing-\(UUID())")
             model = AppModel(directory: root, dateProvider: { "2026-10-12" })
             var settings = model.settings; settings.slotLimit = slots; settings.header.visible = false
             settings.fontName = fontName; settings.fontSize = fontSize
+            settings.priorityEnabled = priorityEnabled; settings.appearance = .light
             guard model.applySettings(settings) else { throw PadError.invalidData }
             window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: 500), styleMask: [.titled], backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false
